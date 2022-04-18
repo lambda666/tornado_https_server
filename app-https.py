@@ -14,6 +14,7 @@ class UploadHandler(tornado.web.RequestHandler):
     def initialize(self):
         self.save_name = ''
         self.save_size = 0
+        self.last_time = time.time()
 
     def _new_wav(self, fmt, rates, bits, ch):
         t = time.localtime()
@@ -24,7 +25,8 @@ class UploadHandler(tornado.web.RequestHandler):
             f.setparams((ch, int(bits/8), rates, 0, 'NONE', 'NONE'))
         else:
             f = open(filename, 'wb')
-
+        self.last_time = time.time()
+        self.save_size = 0
         return filename,f
 
     def _write_wav(self, filename, f, data):
@@ -57,6 +59,27 @@ class UploadHandler(tornado.web.RequestHandler):
 
     def data_received(self,chunk):
         #print('data_received')
+        
+        if time.time() - self.last_time > 30:
+            try:
+                self._end_wav(self.w_f)
+                self.save_name = ''
+            except Exception:
+                print('_end_wav error')
+            try:
+                headers = self.request.headers                
+                sample_rates = headers.get('x-audio-sample-rates', '').lower()
+                bits = headers.get('x-audio-bits', '').lower()
+                channel = headers.get('x-audio-channel', '').lower()
+                fmt = headers.get('x-audio-format', '').lower()
+                print("Audio information, format: {}, sample rates: {}, bits: {}, channel(s): {}".format(fmt, sample_rates, bits, channel))
+                
+                if self.save_name == '':
+                    self.save_name, self.w_f = self._new_wav(fmt, int(sample_rates), int(bits), int(channel))
+                print(self.save_name)
+            except Exception:
+                print('prepare error')
+        
         self.save_size += len(chunk)
         try:
             if self.save_name != '':
@@ -110,7 +133,7 @@ class FileDownloadHandler(tornado.web.RequestHandler):
                 self.write(data)
         #记得要finish
         self.finish()
-        
+
 application = tornado.web.Application(
     handlers=[
               (r'/', FileReviewHandler),
@@ -119,13 +142,14 @@ application = tornado.web.Application(
               ],    # 网页路径控制
     template_path=os.path.join(os.path.dirname(__file__), "templates"), # 模板路径
     static_path=os.path.join(os.path.dirname(__file__), "static"),  # 配置静态文件路径
+    debug=True,
   )
 
 if __name__ == "__main__":
     server = tornado.httpserver.HTTPServer(application
            , ssl_options={
-           "certfile": os.path.join(os.path.abspath("."), "tls_certificate/server/server.crt"),
-           "keyfile": os.path.join(os.path.abspath("."), "tls_certificate/server/server.key"),
+           "certfile": os.path.join(os.path.abspath("."), "../tls_certificate/server/server.crt"),
+           "keyfile": os.path.join(os.path.abspath("."), "../tls_certificate/server/server.key"),
            }
     )
     server.listen(8000)
