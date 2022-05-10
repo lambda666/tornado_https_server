@@ -9,8 +9,37 @@ import json
 
 MAX_STREAMED_SIZE = 1024 * 1024 * 1024
 
+class otaUploadHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.write('''
+        <html>
+          <head><title>Upload File</title></head>
+          <body>
+            <form action='ota' enctype="multipart/form-data" method='post'>
+            <input type='file' name='ota'/>
+            <br/>
+            <input type='submit' value='submit'/>
+            </form>
+          </body>
+        </html>
+        ''')
+
+    def post(self):
+        print("post")
+        upload_path=os.path.join(os.path.dirname(__file__),'audio')
+        file_metas=self.request.files['ota']    
+        print(upload_path)
+        print(file_metas)
+        for meta in file_metas:
+            filename=meta['filename']
+            print(filename)
+            filepath=os.path.join(upload_path,filename)
+            with open(filepath,'wb') as up:      
+                up.write(meta['body'])
+            self.write('finished!')
+
 @tornado.web.stream_request_body
-class UploadHandler(tornado.web.RequestHandler):
+class AudioUploadHandler(tornado.web.RequestHandler):
     def initialize(self):
         self.save_name = ''
         self.save_size = 0
@@ -138,7 +167,8 @@ application = tornado.web.Application(
     handlers=[
               (r'/', FileReviewHandler),
               (r'/data', FileDownloadHandler),
-              (r'/upload', UploadHandler),
+              (r'/upload', AudioUploadHandler),
+              (r'/ota', otaUploadHandler),
               ],    # 网页路径控制
     template_path=os.path.join(os.path.dirname(__file__), "templates"), # 模板路径
     static_path=os.path.join(os.path.dirname(__file__), "static"),  # 配置静态文件路径
